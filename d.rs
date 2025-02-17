@@ -39,5 +39,5 @@ fn main() {
             while s[j] != 0 { r.push(s[j]); j += 1 }
         }
     }
-    let _ = std::fs::write(a.next().unwrap(), &r);
+    std::fs::write(a.next().unwrap(), &r).unwrap();
 }

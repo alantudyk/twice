@@ -75,5 +75,5 @@ fn main() {
         p = j;
     }
     r.extend(&s[p..]);
-    let _ = std::fs::write(a.next().unwrap(), &r);
+    std::fs::write(a.next().unwrap(), &r).unwrap();
 }

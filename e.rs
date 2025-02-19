@@ -23,10 +23,12 @@ fn main() {
     let mut p = 0;
     let mut h = Map::new();
     while let Some((i, j)) = next_ij(p) {
-        if j - i > 1 { *h.entry(&s[i..j]).or_insert(0i64) += 1; }
+        for (s, d) in [(&s[p..i], i - p), (&s[i..j],  j - i)] {
+            if d > 1 { *h.entry(s).or_insert(0i64) += 1 }
+        }
         p = j;
     }
-    let mut r = Vec::with_capacity(526e6 as usize);
+    let mut r = Vec::with_capacity(452e6 as usize);
     let mut v = h.into_iter()
         .map(|(s, v)| (s, v, 0i64)).collect::<Vec<_>>();
     fn pv(v : &mut Vec<(&[u8], i64, i64)>, n: i64) {
@@ -34,6 +36,7 @@ fn main() {
             let z = t.0.len() as i64;
             t.2 = t.1 * (z - n) - (z + 1);
         }
+        v.retain(|t| t.2 > 0);
         v.sort_by_key(|t| t.2);
     }
     pv(&mut v, 1);
@@ -50,7 +53,7 @@ fn main() {
         r.extend(t.0);
         r.push(0);
     }
-    for (x, y) in [(256, 2), (1 << 16, 3), (524447, 4)] {
+    for (x, y) in [(256, 2), (1 << 16, 3), (877805, 4)] {
         pv(&mut v, y as i64);
         let mut b = vec![251 + y as u8; y];
         for mut x in 0..x {
@@ -66,11 +69,8 @@ fn main() {
     }
     let mut p = 0;
     while let Some((i, j)) = next_ij(p) {
-        r.extend(&s[p..i]);
-        if let Some(v) = h.get(&s[i..j]) {
-            r.extend(v);
-        } else {
-            r.extend(&s[i..j]);
+        for s in [&s[p..i], &s[i..j]] {
+            r.extend(if let Some(v) = h.get(s) { v } else { s })
         }
         p = j;
     }

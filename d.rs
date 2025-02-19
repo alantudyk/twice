@@ -2,7 +2,7 @@ fn main() {
     let mut a = std::env::args().skip(1);
     let s = std::fs::read(a.next().unwrap()).unwrap();
     let mut c = [true; 253];
-    let mut d = vec![0; 624447];
+    let mut d = vec![0; 977805];
     let mut si = 0;
     for _ in 0..47 {
         let i = s[si] as usize;
@@ -11,7 +11,7 @@ fn main() {
         si = (si + 2..).find(|&i| s[i] == 0).unwrap() + 1;
     }
     let o = [1_000, 10_000, 100_000];
-    for (di, &o) in std::iter::zip([256, 1 << 16, 524447], &o) {
+    for (di, &o) in std::iter::zip([256, 1 << 16, 877805], &o) {
         for di in 0..di {
             d[di + o] = si;
             si = (si + 2..).find(|&i| s[i] == 0).unwrap() + 1;

@@ -1,6 +1,8 @@
 ```
-$ du -ab *.gz | sort
-229188012    enwik9.xwrt.gz
-264217893    enwik9.twice.gz
-322591995    enwik9.gz
+$ time ./d /tmp/enwik9.twice /tmp/enwik9.dec
+
+real    0m3,657s
+user    0m2,444s
+sys     0m1,210s
+
 ```

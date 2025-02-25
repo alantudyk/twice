@@ -23,12 +23,12 @@ fn main() {
     let mut p = 0;
     let mut h = Map::new();
     while let Some((i, j)) = next_ij(p) {
-        for (s, d) in [(&s[p..i], i - p), (&s[i..j],  j - i)] {
-            if d > 1 { *h.entry(s).or_insert(0i64) += 1 }
+        for s in [&s[p..i], &s[i..j]] {
+            if s.len() > 1 { *h.entry(s).or_insert(0i64) += 1 }
         }
         p = j;
     }
-    let mut r = Vec::with_capacity(452e6 as usize);
+    let mut r = Vec::with_capacity(741e6 as usize);
     let mut v = h.into_iter()
         .map(|(s, v)| (s, v, 0i64)).collect::<Vec<_>>();
     fn pv(v : &mut Vec<(&[u8], i64, i64)>, n: i64) {
@@ -41,9 +41,9 @@ fn main() {
     }
     pv(&mut v, 1);
     let c = {
-        let mut c = [true; 253];
+        let mut c = [true; 255];
         for &b in &s { c[b as usize] = false; }
-        (0..253).filter(|&i| c[i]).collect::<Vec<_>>()
+        (0..255).filter(|&i| c[i]).collect::<Vec<_>>()
     };
     let mut h = Map::new();
     for c in c {
@@ -53,19 +53,14 @@ fn main() {
         r.extend(t.0);
         r.push(0);
     }
-    for (x, y) in [(256, 2), (1 << 16, 3), (877805, 4)] {
-        pv(&mut v, y as i64);
-        let mut b = vec![251 + y as u8; y];
-        for mut x in 0..x {
-            let t = v.pop().unwrap();
-            for b in &mut b[1..] {
-                *b = x as u8;
-                x >>= 8;
-            }
-            h.insert(t.0, b.clone());
-            r.extend(t.0);
-            r.push(0);
-        }
+    pv(&mut v, 2);
+    let mut b = vec![255_u8; 2];
+    for x in 0..256 {
+        b[1] = x as u8;
+        let t = v.pop().unwrap();
+        h.insert(t.0, b.clone());
+        r.extend(t.0);
+        r.push(0);
     }
     let mut p = 0;
     while let Some((i, j)) = next_ij(p) {

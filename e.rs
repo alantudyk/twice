@@ -46,43 +46,59 @@ fn main() {
         let s = s.to_vec();
         std::thread::spawn(move || {
             let mut p = 0;
-            let mut h = Map::new();
-            while let Some((i, j)) = next_ij(&s, p) {
-                for s in [&s[p..i], &s[i..j]] {
-                    if s.len() < 2 { continue }
-                    if let Some(c) = h.get_mut(s) {
-                        *c += 1;
-                    } else {
-                        h.insert(s.to_vec(), 1_i64);
-                    }
+            let mut hx = Map::new();
+            let mut hy = Map::new();
+            let mut f = | s: &[u8] | {
+                let z = s.len() as i64;
+                if z < 2 { return }
+                if z <= 7 {
+                    let mut k = 0i64;
+                    for &b in s.iter().rev() { k = (k << 8) | b as i64 }
+                    k = (k << 8) | z;
+                    *hx.entry(k).or_insert(0i64) += 1;
+                } else if let Some(c) = hy.get_mut(s) {
+                    *c += 1;
+                } else {
+                    hy.insert(s.to_vec(), 1_i64);
                 }
+            };
+            while let Some((i, j)) = next_ij(&s, p) {
+                for s in [&s[p..i], &s[i..j]] { f(s) }
                 p = j;
             }
-            let s = &s[p..];
-            if s.len() > 1 { *h.entry(s.to_vec()).or_insert(0) += 1 }
-            tx.send(h).unwrap();
+            f(&s[p..]);
+            tx.send((hx, hy)).unwrap();
         });
     }
     let mut hc = nt;
-    let mut h: Vec<Map<Vec<u8>, i64>> = vec![];
-    for mut a in rx { 
-        if let Some(mut b) = h.pop() {
+    let mut h: Vec<(Map<i64, i64>, Map<Vec<u8>, i64>)> = vec![];
+    for (mut ax, mut ay) in rx {
+        if let Some((mut bx, mut by)) = h.pop() {
             hc -= 1;
             let tx = tx.clone();
             std::thread::spawn(move || {
-                if a.len() < b.len() { (a, b) = (b, a) }
-                for (k, v) in b { *a.entry(k).or_insert(0) += v }
-                tx.send(a).unwrap();
+                if ax.len() < bx.len() { (ax, bx) = (bx, ax) }
+                for (k, v) in bx { *ax.entry(k).or_insert(0) += v }
+                if ay.len() < by.len() { (ay, by) = (by, ay) }
+                for (k, v) in by { *ay.entry(k).or_insert(0) += v }
+                tx.send((ax, ay)).unwrap();
             });
         } else {
-            h.push(a);
+            h.push((ax, ay));
             if hc == 1 { break }
         }
     }
 
     let mut r = Vec::with_capacity(452e6 as usize);
-    let mut v = h.pop().unwrap().into_iter()
+    let (hx, hy) = h.pop().unwrap();
+    let mut v = hy.into_iter()
         .map(|(s, v)| (s, v, 0i64)).collect::<Vec<_>>();
+    for (mut k, c) in hx {
+        let z = k as u8; k >>= 8;
+        let mut s = Vec::with_capacity(z as usize);
+        for _ in 0..z { s.push(k as u8); k >>= 8 }
+        v.push((s, c, 0i64));
+    }
     fn pv(v : &mut Vec<(Vec<u8>, i64, i64)>, n: i64) {
         for t in v.iter_mut() {
             let z = t.0.len() as i64;

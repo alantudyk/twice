@@ -135,24 +135,48 @@ fn main() {
             h.insert(t.0, b.clone());
         }
     }
-    let h = h;
+
+    let mut hx = Map::new();
+    let mut hy = Map::new();
+    for (s, v) in h {
+        if s.len() <= 8 {
+            let mut k = 0_u64;
+            for b in s.into_iter().rev() { k = (k << 8) | b as u64 }
+            hx.insert(k, v);
+        } else {
+            hy.insert(s, v);
+        }
+    }
+    let h = (hx, hy);
 
     let (tx, rx) = std::sync::mpsc::channel();
     for (ti, &s) in ss.iter().enumerate() {
         let tx = tx.clone();
         let s = s.to_vec();
-        let h = h.clone();
+        let (hx, hy) = h.clone();
         std::thread::spawn(move || {
             let mut r = vec![];
             let mut p = 0;
+            let mut f = | s: &[u8] | {
+                let z = s.len();
+                let v = if z < 2 {
+                    s
+                } else if z <= 8 {
+                    let mut k = 0_u64;
+                    for &b in s.iter().rev() { k = (k << 8) | b as u64 }
+                    if let Some(v) = hx.get(&k) { v } else { s }
+                } else if let Some(v) = hy.get(s) {
+                    v
+                } else {
+                    s
+                };
+                r.extend(v)
+            };
             while let Some((i, j)) = next_ij(&s, p) {
-                for s in [&s[p..i], &s[i..j]] {
-                    r.extend(if let Some(v) = h.get(s) { v } else { s })
-                }
+                for s in [&s[p..i], &s[i..j]] { f(s) }
                 p = j;
             }
-            let s = &s[p..];
-            r.extend(if let Some(v) = h.get(s) { v } else { s });
+            f(&s[p..]);
             tx.send((ti, r)).unwrap();
         });
     }

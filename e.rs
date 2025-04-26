@@ -40,6 +40,11 @@ fn main() {
         ss
     };
 
+    fn s2k(s: &[u8]) -> u64 {
+        let mut k = 0;
+        for &b in s.iter().rev() { k = (k << 8) | b as u64 }
+        k
+    }
     let (tx, rx) = std::sync::mpsc::channel();
     for &s in &ss {
         let tx = tx.clone();
@@ -49,29 +54,27 @@ fn main() {
             let mut hx = Map::new();
             let mut hy = Map::new();
             let mut f = | s: &[u8] | {
-                let z = s.len() as i64;
-                if z < 2 { return }
-                if z <= 7 {
-                    let mut k = 0i64;
-                    for &b in s.iter().rev() { k = (k << 8) | b as i64 }
-                    k = (k << 8) | z;
-                    *hx.entry(k).or_insert(0i64) += 1;
-                } else if let Some(c) = hy.get_mut(s) {
-                    *c += 1;
-                } else {
-                    hy.insert(s.to_vec(), 1_i64);
+                match s.len() {
+                    0..=1 => return,
+                    2..=8 => *hx.entry(s2k(s)).or_insert(0i64) += 1,
+                      _   =>
+                        if let Some(c) = hy.get_mut(s) {
+                            *c += 1;
+                        } else {
+                            hy.insert(s.to_vec(), 1_i64);
+                        }
                 }
             };
             while let Some((i, j)) = next_ij(&s, p) {
                 for s in [&s[p..i], &s[i..j]] { f(s) }
-                p = j;
+                p = j
             }
             f(&s[p..]);
             tx.send((hx, hy)).unwrap();
         });
     }
     let mut hc = nt;
-    let mut h: Vec<(Map<i64, i64>, Map<Vec<u8>, i64>)> = vec![];
+    let mut h: Vec<(Map<u64, i64>, Map<Vec<u8>, i64>)> = vec![];
     for (mut ax, mut ay) in rx {
         if let Some((mut bx, mut by)) = h.pop() {
             hc -= 1;
@@ -94,7 +97,7 @@ fn main() {
     let mut v = hy.into_iter()
         .map(|(s, v)| (s, v, 0i64)).collect::<Vec<_>>();
     for (mut k, c) in hx {
-        let z = k as u8; k >>= 8;
+        let z = 8 - k.leading_zeros() / 8;
         let mut s = Vec::with_capacity(z as usize);
         for _ in 0..z { s.push(k as u8); k >>= 8 }
         v.push((s, c, 0i64));
@@ -113,13 +116,21 @@ fn main() {
         for &b in &s { c[b as usize] = false; }
         (0..253).filter(|&i| c[i]).collect::<Vec<_>>()
     };
-    let mut h = Map::new();
+    let mut hx = Map::new();
+    let mut hy = Map::new();
+    let mut insert = | s: Vec<u8>, v: Vec<u8> | {
+        if s.len() <= 8 {
+            hx.insert(s2k(&s), v);
+        } else {
+            hy.insert(s, v);
+        }
+    };
     for c in c {
         let t = v.pop().unwrap();
         r.push(c as u8);
         r.extend(&t.0);
         r.push(0);
-        h.insert(t.0, [c as u8].to_vec());
+        insert(t.0, [c as u8].to_vec())
     }
     for (x, y) in [(256, 2), (1 << 16, 3), (877805, 4)] {
         pv(&mut v, y as i64);
@@ -132,19 +143,7 @@ fn main() {
             }
             r.extend(&t.0);
             r.push(0);
-            h.insert(t.0, b.clone());
-        }
-    }
-
-    let mut hx = Map::new();
-    let mut hy = Map::new();
-    for (s, v) in h {
-        if s.len() <= 8 {
-            let mut k = 0_u64;
-            for b in s.into_iter().rev() { k = (k << 8) | b as u64 }
-            hx.insert(k, v);
-        } else {
-            hy.insert(s, v);
+            insert(t.0, b.clone())
         }
     }
     let h = (hx, hy);
@@ -158,23 +157,16 @@ fn main() {
             let mut r = vec![];
             let mut p = 0;
             let mut f = | s: &[u8] | {
-                let z = s.len();
-                let v = if z < 2 {
-                    s
-                } else if z <= 8 {
-                    let mut k = 0_u64;
-                    for &b in s.iter().rev() { k = (k << 8) | b as u64 }
-                    if let Some(v) = hx.get(&k) { v } else { s }
-                } else if let Some(v) = hy.get(s) {
-                    v
-                } else {
-                    s
+                let v = match s.len() {
+                    0..=1 => s,
+                    2..=8 => if let Some(v) = hx.get(&s2k(s)) { v } else { s },
+                      _   => if let Some(v) = hy.get(s) { v } else { s }
                 };
                 r.extend(v)
             };
             while let Some((i, j)) = next_ij(&s, p) {
                 for s in [&s[p..i], &s[i..j]] { f(s) }
-                p = j;
+                p = j
             }
             f(&s[p..]);
             tx.send((ti, r)).unwrap();

@@ -1,4 +1,4 @@
-use std::collections::HashMap as Map;
+use std::collections::{HashMap as Map, BTreeSet as OSet};
 
 fn main() {
     let mut a = std::env::args().skip(1);
@@ -56,12 +56,12 @@ fn main() {
             let mut f = | s: &[u8] | {
                 match s.len() {
                     0..=1 => return,
-                    2..=8 => *hx.entry(s2k(s)).or_insert(0i64) += 1,
+                    2..=8 => *hx.entry(s2k(s)).or_insert(0_u32) += 1,
                       _   =>
                         if let Some(c) = hy.get_mut(s) {
                             *c += 1;
                         } else {
-                            hy.insert(s.to_vec(), 1_i64);
+                            hy.insert(s.to_vec(), 1_u32);
                         }
                 }
             };
@@ -74,7 +74,7 @@ fn main() {
         });
     }
     let mut hc = nt;
-    let mut h: Vec<(Map<u64, i64>, Map<Vec<u8>, i64>)> = vec![];
+    let mut h: Vec<(Map<u64, u32>, Map<Vec<u8>, u32>)> = vec![];
     for (mut ax, mut ay) in rx {
         if let Some((mut bx, mut by)) = h.pop() {
             hc -= 1;
@@ -92,15 +92,15 @@ fn main() {
         }
     }
 
-    let mut r = Vec::with_capacity(452e6 as usize);
+    let mut r = Vec::with_capacity(11e6 as usize);
     let (hx, hy) = h.pop().unwrap();
     let mut v = hy.into_iter()
-        .map(|(s, v)| (s, v, 0i64)).collect::<Vec<_>>();
+        .map(|(s, c)| (s, c as i64, 0_i64)).collect::<Vec<_>>();
     for (mut k, c) in hx {
         let z = 8 - k.leading_zeros() / 8;
         let mut s = Vec::with_capacity(z as usize);
         for _ in 0..z { s.push(k as u8); k >>= 8 }
-        v.push((s, c, 0i64));
+        v.push((s, c as i64, 0_i64));
     }
     fn pv(v : &mut Vec<(Vec<u8>, i64, i64)>, n: i64) {
         for t in v.iter_mut() {
@@ -172,9 +172,21 @@ fn main() {
             tx.send((ti, r)).unwrap();
         });
     }
-    let mut v: Vec<_> = (0..nt).map(|_| rx.recv().unwrap()).collect();
-    v.sort_by_key(|t| t.0);
-    for (_, v) in v { r.extend(&v) }
 
-    std::fs::write(a.next().unwrap(), &r).unwrap();
+    let mut f = std::fs::File::create(a.next().unwrap()).unwrap();
+    use std::io::Write;
+    f.write_all(&r).unwrap();
+    let mut s = OSet::new();
+    let mut t = 0;
+    while t < nt {
+        s.insert(rx.recv().unwrap());
+        while let Some(x) = s.first() {
+            if x.0 == t {
+                t += 1;
+                f.write_all(&s.pop_first().unwrap().1).unwrap();
+            } else {
+                break
+            }
+        }
+    }
 }

@@ -118,13 +118,14 @@ fn main() {
         for &b in &s { c[b as usize] = false; }
         (0..253).filter(|&i| c[i]).collect::<Vec<_>>()
     };
-    let mut hx = Map::new();
-    let mut hy = Map::new();
+    let mut h = (
+        Map::new(), Map::new()
+    );
     let mut insert = | s: Vec<u8>, v: Vec<u8> | {
         if s.len() <= 8 {
-            hx.insert(s2k(&s), v);
+            h.0.insert(s2k(&s), v);
         } else {
-            hy.insert(s, v);
+            h.1.insert(s, v);
         }
     };
     for c in c {
@@ -148,7 +149,7 @@ fn main() {
             insert(t.0, b.clone())
         }
     }
-    let h = (hx, hy);
+    let h = h;
 
     let (tx, rx) = std::sync::mpsc::channel();
     for (ti, &s) in ss.iter().enumerate() {

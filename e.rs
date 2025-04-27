@@ -45,23 +45,25 @@ fn main() {
         for &b in s.iter().rev() { k = (k << 8) | b as u64 }
         k
     }
-    macro_rules! m2 { () => { (Map::new(), Map::new()) } }
+    macro_rules! m { () => { Map::new() } }
+    macro_rules! m3 { () => { (m!(), m!(), m!()) } }
     let (tx, rx) = std::sync::mpsc::channel();
     for &s in &ss {
         let tx = tx.clone();
         let s = s.to_vec();
         std::thread::spawn(move || {
             let mut p = 0;
-            let mut h = m2!();
+            let mut h = m3!();
             let mut f = | s: &[u8] | {
                 match s.len() {
                     0..=1 => return,
-                    2..=8 => *h.0.entry(s2k(s)).or_insert(0_u32) += 1,
+                    2..=4 => *h.0.entry(s2k(s) as _).or_insert(0_u32) += 1,
+                    5..=8 => *h.1.entry(s2k(s)).or_insert(0_u32) += 1,
                       _   =>
-                        if let Some(c) = h.1.get_mut(s) {
+                        if let Some(c) = h.2.get_mut(s) {
                             *c += 1;
                         } else {
-                            h.1.insert(s.to_vec(), 1_u32);
+                            h.2.insert(s.to_vec(), 1_u32);
                         }
                 }
             };
@@ -74,8 +76,12 @@ fn main() {
         });
     }
     let mut hc = nt;
-    type DiMap = (Map<u64, u32>, Map<Vec<u8>, u32>);
-    let mut h: Vec<DiMap> = vec![];
+    type TriMap = (
+        Map<u32, u32>,
+        Map<u64, u32>,
+        Map<Vec<u8>, u32>,
+    );
+    let mut h: Vec<TriMap> = vec![];
     for a in rx {
         if let Some(b) = h.pop() {
             hc -= 1;
@@ -94,6 +100,7 @@ fn main() {
                 }
                 merge!(0);
                 merge!(1);
+                merge!(2);
                 tx.send(a).unwrap();
             });
         } else {
@@ -103,10 +110,16 @@ fn main() {
     }
 
     let mut r = Vec::with_capacity(11e6 as usize);
-    let (h0, h) = h.pop().unwrap();
+    let (h0, h1, h) = h.pop().unwrap();
     let mut v: Vec<_> = h.into_iter()
         .map(|(s, c)| (s, c as i64, 0_i64)).collect();
     for (mut k, c) in h0 {
+        let z = 4 - k.leading_zeros() / 8;
+        let mut s = Vec::with_capacity(z as usize);
+        for _ in 0..z { s.push(k as u8); k >>= 8 }
+        v.push((s, c as i64, 0_i64));
+    }
+    for (mut k, c) in h1 {
         let z = 8 - k.leading_zeros() / 8;
         let mut s = Vec::with_capacity(z as usize);
         for _ in 0..z { s.push(k as u8); k >>= 8 }
@@ -126,12 +139,14 @@ fn main() {
         for &b in &s { c[b as usize] = false; }
         (0..253).filter(|&i| c[i]).collect::<Vec<_>>()
     };
-    let mut h = m2!();
+    let mut h = m3!();
     let mut insert = | s: Vec<u8>, v: Vec<u8> | {
-        if s.len() <= 8 {
-            h.0.insert(s2k(&s), v);
+        if s.len() <= 4 {
+            h.0.insert(s2k(&s) as u32, v);
+        } else if s.len() <= 8 {
+            h.1.insert(s2k(&s), v);
         } else {
-            h.1.insert(s, v);
+            h.2.insert(s, v);
         }
     };
     for c in c {
@@ -168,8 +183,9 @@ fn main() {
             let mut f = | s: &[u8] | {
                 let v = match s.len() {
                     0..=1 => s,
-                    2..=8 => if let Some(v) = h.0.get(&s2k(s)) { v } else { s },
-                      _   => if let Some(v) = h.1.get(s) { v } else { s }
+                    2..=4 => if let Some(v) = h.0.get(&(s2k(s) as _)) { v } else { s },
+                    5..=8 => if let Some(v) = h.1.get(&s2k(s)) { v } else { s },
+                      _   => if let Some(v) = h.2.get(s) { v } else { s }
                 };
                 r.extend(v)
             };
@@ -190,12 +206,9 @@ fn main() {
     while t < nt {
         s.insert(rx.recv().unwrap());
         while let Some(x) = s.first() {
-            if x.0 == t {
-                t += 1;
-                f.write_all(&s.pop_first().unwrap().1).unwrap();
-            } else {
-                break
-            }
+            if x.0 != t { break }
+            f.write_all(&s.pop_first().unwrap().1).unwrap();
+            t += 1
         }
     }
 }

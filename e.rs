@@ -45,23 +45,24 @@ fn main() {
         for &b in s.iter().rev() { k = (k << 8) | b as u64 }
         k
     }
+    type DiMap = (Map<u64, u32>, Map<Vec<u8>, u32>);
+    fn new_bm() -> DiMap { (Map::new(), Map::new()) }
     let (tx, rx) = std::sync::mpsc::channel();
     for &s in &ss {
         let tx = tx.clone();
         let s = s.to_vec();
         std::thread::spawn(move || {
             let mut p = 0;
-            let mut hx = Map::new();
-            let mut hy = Map::new();
+            let mut h = new_bm();
             let mut f = | s: &[u8] | {
                 match s.len() {
                     0..=1 => return,
-                    2..=8 => *hx.entry(s2k(s)).or_insert(0_u32) += 1,
+                    2..=8 => *h.0.entry(s2k(s)).or_insert(0_u32) += 1,
                       _   =>
-                        if let Some(c) = hy.get_mut(s) {
+                        if let Some(c) = h.1.get_mut(s) {
                             *c += 1;
                         } else {
-                            hy.insert(s.to_vec(), 1_u32);
+                            h.1.insert(s.to_vec(), 1_u32);
                         }
                 }
             };
@@ -70,24 +71,25 @@ fn main() {
                 p = j
             }
             f(&s[p..]);
-            tx.send((hx, hy)).unwrap();
+            tx.send(h).unwrap();
         });
     }
     let mut hc = nt;
-    let mut h: Vec<(Map<u64, u32>, Map<Vec<u8>, u32>)> = vec![];
-    for (mut ax, mut ay) in rx {
-        if let Some((mut bx, mut by)) = h.pop() {
+    let mut h: Vec<DiMap> = vec![];
+    for a in rx {
+        if let Some(b) = h.pop() {
             hc -= 1;
             let tx = tx.clone();
             std::thread::spawn(move || {
-                if ax.len() < bx.len() { (ax, bx) = (bx, ax) }
-                for (k, v) in bx { *ax.entry(k).or_insert(0) += v }
-                if ay.len() < by.len() { (ay, by) = (by, ay) }
-                for (k, v) in by { *ay.entry(k).or_insert(0) += v }
-                tx.send((ax, ay)).unwrap();
+                let (mut a, mut b) = (a, b);
+                if a.0.len() < b.0.len() { (a.0, b.0) = (b.0, a.0) }
+                for (k, v) in b.0 { *a.0.entry(k).or_insert(0) += v }
+                if a.1.len() < b.1.len() { (a.1, b.1) = (b.1, a.1) }
+                for (k, v) in b.1 { *a.1.entry(k).or_insert(0) += v }
+                tx.send(a).unwrap();
             });
         } else {
-            h.push((ax, ay));
+            h.push(a);
             if hc == 1 { break }
         }
     }

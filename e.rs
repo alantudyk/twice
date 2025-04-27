@@ -95,10 +95,10 @@ fn main() {
     }
 
     let mut r = Vec::with_capacity(11e6 as usize);
-    let (hx, hy) = h.pop().unwrap();
-    let mut v = hy.into_iter()
-        .map(|(s, c)| (s, c as i64, 0_i64)).collect::<Vec<_>>();
-    for (mut k, c) in hx {
+    let (h0, h) = h.pop().unwrap();
+    let mut v: Vec<_> = h.into_iter()
+        .map(|(s, c)| (s, c as i64, 0_i64)).collect();
+    for (mut k, c) in h0 {
         let z = 8 - k.leading_zeros() / 8;
         let mut s = Vec::with_capacity(z as usize);
         for _ in 0..z { s.push(k as u8); k >>= 8 }
@@ -153,15 +153,15 @@ fn main() {
     for (ti, &s) in ss.iter().enumerate() {
         let tx = tx.clone();
         let s = s.to_vec();
-        let (hx, hy) = h.clone();
+        let h = h.clone();
         std::thread::spawn(move || {
             let mut r = vec![];
             let mut p = 0;
             let mut f = | s: &[u8] | {
                 let v = match s.len() {
                     0..=1 => s,
-                    2..=8 => if let Some(v) = hx.get(&s2k(s)) { v } else { s },
-                      _   => if let Some(v) = hy.get(s) { v } else { s }
+                    2..=8 => if let Some(v) = h.0.get(&s2k(s)) { v } else { s },
+                      _   => if let Some(v) = h.1.get(s) { v } else { s }
                 };
                 r.extend(v)
             };

@@ -46,24 +46,28 @@ fn main() {
         k
     }
     macro_rules! m { () => { Map::new() } }
-    macro_rules! m3 { () => { (m!(), m!(), m!()) } }
+    macro_rules! m4 { () => { (m!(), m!(), m!(), m!()) } }
     let (tx, rx) = std::sync::mpsc::channel();
     for &s in &ss {
         let tx = tx.clone();
         let s = s.to_vec();
         std::thread::spawn(move || {
             let mut p = 0;
-            let mut h = m3!();
+            let mut h = m4!();
             let mut f = | s: &[u8] | {
                 match s.len() {
-                    0..=1 => return,
-                    2..=4 => *h.0.entry(s2k(s) as _).or_insert(0_u32) += 1,
-                    5..=8 => *h.1.entry(s2k(s)).or_insert(0_u32) += 1,
-                      _   =>
-                        if let Some(c) = h.2.get_mut(s) {
+                    0..=1  => return,
+                    2..=4  => *h.0.entry(s2k(s) as _).or_insert(0_u32) += 1,
+                    5..=8  => *h.1.entry(s2k(s)).or_insert(0_u32) += 1,
+                    9..=16 => {
+                        let k = (s2k(&s[..8]), s2k(&s[8..]));
+                        *h.2.entry(k).or_insert(0_u32) += 1
+                    },
+                      _    =>
+                        if let Some(c) = h.3.get_mut(s) {
                             *c += 1;
                         } else {
-                            h.2.insert(s.to_vec(), 1_u32);
+                            h.3.insert(s.to_vec(), 1_u32);
                         }
                 }
             };
@@ -76,12 +80,13 @@ fn main() {
         });
     }
     let mut hc = nt;
-    type TriMap = (
+    type TetraMap = (
         Map<u32, u32>,
         Map<u64, u32>,
+        Map<(u64, u64), u32>,
         Map<Vec<u8>, u32>,
     );
-    let mut h: Vec<TriMap> = vec![];
+    let mut h: Vec<TetraMap> = vec![];
     for a in rx {
         if let Some(b) = h.pop() {
             hc -= 1;
@@ -101,6 +106,7 @@ fn main() {
                 merge!(0);
                 merge!(1);
                 merge!(2);
+                merge!(3);
                 tx.send(a).unwrap();
             });
         } else {
@@ -110,7 +116,7 @@ fn main() {
     }
 
     let mut r = Vec::with_capacity(11e6 as usize);
-    let (h0, h1, h) = h.pop().unwrap();
+    let (h0, h1, h2, h) = h.pop().unwrap();
     let mut v: Vec<_> = h.into_iter()
         .map(|(s, c)| (s, c as i64, 0_i64)).collect();
     for (mut k, c) in h0 {
@@ -123,6 +129,13 @@ fn main() {
         let z = 8 - k.leading_zeros() / 8;
         let mut s = Vec::with_capacity(z as usize);
         for _ in 0..z { s.push(k as u8); k >>= 8 }
+        v.push((s, c as i64, 0_i64));
+    }
+    for ((mut k0, mut k1), c) in h2 {
+        let z = 8 - k1.leading_zeros() / 8;
+        let mut s = Vec::with_capacity(8 + z as usize);
+        for _ in 0..8 { s.push(k0 as u8); k0 >>= 8 }
+        for _ in 0..z { s.push(k1 as u8); k1 >>= 8 }
         v.push((s, c as i64, 0_i64));
     }
     fn pv(v : &mut Vec<(Vec<u8>, i64, i64)>, n: i64) {
@@ -139,15 +152,14 @@ fn main() {
         for &b in &s { c[b as usize] = false; }
         (0..253).filter(|&i| c[i]).collect::<Vec<_>>()
     };
-    let mut h = m3!();
+    let mut h = m4!();
     let mut insert = | s: Vec<u8>, v: Vec<u8> | {
-        if s.len() <= 4 {
-            h.0.insert(s2k(&s) as u32, v);
-        } else if s.len() <= 8 {
-            h.1.insert(s2k(&s), v);
-        } else {
-            h.2.insert(s, v);
-        }
+        match s.len() {
+            0..=4  => h.0.insert(s2k(&s) as u32, v),
+            5..=8  => h.1.insert(s2k(&s), v),
+            9..=16 => h.2.insert((s2k(&s[..8]), s2k(&s[8..])), v),
+              _    => h.3.insert(s, v),
+        };
     };
     for c in c {
         let t = v.pop().unwrap();
@@ -182,10 +194,14 @@ fn main() {
             let mut p = 0;
             let mut f = | s: &[u8] | {
                 let v = match s.len() {
-                    0..=1 => s,
-                    2..=4 => if let Some(v) = h.0.get(&(s2k(s) as _)) { v } else { s },
-                    5..=8 => if let Some(v) = h.1.get(&s2k(s)) { v } else { s },
-                      _   => if let Some(v) = h.2.get(s) { v } else { s }
+                    0..=1  => s,
+                    2..=4  => if let Some(v) = h.0.get(&(s2k(s) as _)) { v } else { s },
+                    5..=8  => if let Some(v) = h.1.get(&s2k(s)) { v } else { s },
+                    9..=16 => {
+                        let k = (s2k(&s[..8]), s2k(&s[8..]));
+                        if let Some(v) = h.2.get(&k) { v } else { s }
+                    },
+                      _    => if let Some(v) = h.3.get(s) { v } else { s }
                 };
                 r.extend(v)
             };

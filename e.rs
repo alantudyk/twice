@@ -82,10 +82,18 @@ fn main() {
             let tx = tx.clone();
             std::thread::spawn(move || {
                 let (mut a, mut b) = (a, b);
-                if a.0.len() < b.0.len() { (a.0, b.0) = (b.0, a.0) }
-                for (k, v) in b.0 { *a.0.entry(k).or_insert(0) += v }
-                if a.1.len() < b.1.len() { (a.1, b.1) = (b.1, a.1) }
-                for (k, v) in b.1 { *a.1.entry(k).or_insert(0) += v }
+                macro_rules! merge {
+                    ($i:tt) => {
+                        if a.$i.len() < b.$i.len() {
+                            (a.$i, b.$i) = (b.$i, a.$i)
+                        }
+                        for (k, v) in b.$i {
+                            *a.$i.entry(k).or_insert(0) += v
+                        }
+                    }
+                }
+                merge!(0);
+                merge!(1);
                 tx.send(a).unwrap();
             });
         } else {

@@ -45,15 +45,14 @@ fn main() {
         for &b in s.iter().rev() { k = (k << 8) | b as u64 }
         k
     }
-    type DiMap = (Map<u64, u32>, Map<Vec<u8>, u32>);
-    fn new_bm() -> DiMap { (Map::new(), Map::new()) }
+    macro_rules! m2 { () => { (Map::new(), Map::new()) } }
     let (tx, rx) = std::sync::mpsc::channel();
     for &s in &ss {
         let tx = tx.clone();
         let s = s.to_vec();
         std::thread::spawn(move || {
             let mut p = 0;
-            let mut h = new_bm();
+            let mut h = m2!();
             let mut f = | s: &[u8] | {
                 match s.len() {
                     0..=1 => return,
@@ -75,6 +74,7 @@ fn main() {
         });
     }
     let mut hc = nt;
+    type DiMap = (Map<u64, u32>, Map<Vec<u8>, u32>);
     let mut h: Vec<DiMap> = vec![];
     for a in rx {
         if let Some(b) = h.pop() {
@@ -118,9 +118,7 @@ fn main() {
         for &b in &s { c[b as usize] = false; }
         (0..253).filter(|&i| c[i]).collect::<Vec<_>>()
     };
-    let mut h = (
-        Map::new(), Map::new()
-    );
+    let mut h = m2!();
     let mut insert = | s: Vec<u8>, v: Vec<u8> | {
         if s.len() <= 8 {
             h.0.insert(s2k(&s), v);

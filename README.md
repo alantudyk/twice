@@ -2,9 +2,9 @@
 ```
 $ time ./e /tmp/enwik9 /tmp/enwik9.twice 
 
-real    0m14,661s    # mt-encoder 0796f52
-user    0m42,308s
-sys     0m2,420s
+real    0m13,135s    # mt-encoder d1dfbf3
+user    0m37,754s
+sys     0m2,354s
 
 $ time ./e /tmp/enwik9 /tmp/enwik9.twice 
 

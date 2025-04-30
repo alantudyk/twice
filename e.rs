@@ -153,7 +153,7 @@ fn main() {
         (0..253).filter(|&i| c[i]).collect::<Vec<_>>()
     };
     let mut h = m4!();
-    let mut insert = | s: Vec<u8>, v: Vec<u8> | {
+    let mut insert = | s: Vec<u8>, v: u64 | {
         match s.len() {
             0..=4  => h.0.insert(s2k(&s) as u32, v),
             5..=8  => h.1.insert(s2k(&s), v),
@@ -166,20 +166,16 @@ fn main() {
         r.push(c as u8);
         r.extend(&t.0);
         r.push(0);
-        insert(t.0, [c as u8].to_vec())
+        insert(t.0, (1_u64 << 32) | c as u64)
     }
     for (x, y) in [(256, 2), (1 << 16, 3), (877805, 4)] {
         pv(&mut v, y as i64);
-        let mut b = vec![251 + y as u8; y];
-        for mut x in 0..x {
+        let z = (y as u64) << 32;
+        for x in z..z + x {
             let t = v.pop().unwrap();
-            for b in &mut b[1..] {
-                *b = x as u8;
-                x >>= 8;
-            }
             r.extend(&t.0);
             r.push(0);
-            insert(t.0, b.clone())
+            insert(t.0, x)
         }
     }
     let h = h;
@@ -193,17 +189,42 @@ fn main() {
             let mut r = vec![];
             let mut p = 0;
             let mut f = | s: &[u8] | {
-                let v = match s.len() {
-                    0..=1  => s,
-                    2..=4  => if let Some(v) = h.0.get(&(s2k(s) as _)) { v } else { s },
-                    5..=8  => if let Some(v) = h.1.get(&s2k(s)) { v } else { s },
+                macro_rules! p {
+                    ($v:ident) => {{
+                        let z = $v >> 32;
+                        if z == 1 {
+                            r.push($v as u8)
+                        } else {
+                            let mut v = $v;
+                            r.push(251 + z as u8);
+                            for _ in 0..z - 1 { r.push(v as u8); v >>= 8 }
+                        }
+                    }}
+                }
+                macro_rules! e {
+                    ($i:tt, $k:ident) => {
+                        if let Some(&v) = h.$i.get(&$k) {
+                            p!(v)
+                        } else {
+                            r.extend(s)
+                        }
+                    }
+                }
+                match s.len() {
+                    0..=1  => r.extend(s),
+                    2..=4  => { let k = s2k(s) as u32; e!(0, k) },
+                    5..=8  => { let k = s2k(s); e!(1, k) },
                     9..=16 => {
                         let k = (s2k(&s[..8]), s2k(&s[8..]));
-                        if let Some(v) = h.2.get(&k) { v } else { s }
+                        e!(2, k)
                     },
-                      _    => if let Some(v) = h.3.get(s) { v } else { s }
-                };
-                r.extend(v)
+                      _    =>
+                        if let Some(&v) = h.3.get(s) {
+                            p!(v)
+                        } else {
+                            r.extend(s)
+                        },
+                }
             };
             while let Some((i, j)) = next_ij(&s, p) {
                 for s in [&s[p..i], &s[i..j]] { f(s) }

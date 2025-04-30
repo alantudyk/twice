@@ -45,15 +45,19 @@ fn main() {
         for &b in s.iter().rev() { k = (k << 8) | b as u64 }
         k
     }
-    macro_rules! m { () => { Map::new() } }
-    macro_rules! m4 { () => { (m!(), m!(), m!(), m!()) } }
+    type TetraMap = (
+        Map<u32, u32>,
+        Map<u64, u32>,
+        Map<(u64, u64), u32>,
+        Map<Vec<u8>, u32>,
+    );
     let (tx, rx) = std::sync::mpsc::channel();
     for &s in &ss {
         let tx = tx.clone();
         let s = s.to_vec();
         std::thread::spawn(move || {
             let mut p = 0;
-            let mut h = m4!();
+            let mut h: TetraMap = Default::default();
             let mut f = | s: &[u8] | {
                 match s.len() {
                     0..=1  => return,
@@ -80,12 +84,6 @@ fn main() {
         });
     }
     let mut hc = nt;
-    type TetraMap = (
-        Map<u32, u32>,
-        Map<u64, u32>,
-        Map<(u64, u64), u32>,
-        Map<Vec<u8>, u32>,
-    );
     let mut h: Vec<TetraMap> = vec![];
     for a in rx {
         if let Some(b) = h.pop() {
@@ -152,8 +150,8 @@ fn main() {
         for &b in &s { c[b as usize] = false; }
         (0..253).filter(|&i| c[i]).collect::<Vec<_>>()
     };
-    let mut h = m4!();
-    let mut insert = | s: Vec<u8>, v: u64 | {
+    let mut h: TetraMap = Default::default();
+    let mut insert = | s: Vec<u8>, v: u32 | {
         match s.len() {
             0..=4  => h.0.insert(s2k(&s) as u32, v),
             5..=8  => h.1.insert(s2k(&s), v),
@@ -166,11 +164,11 @@ fn main() {
         r.push(c as u8);
         r.extend(&t.0);
         r.push(0);
-        insert(t.0, (1_u64 << 32) | c as u64)
+        insert(t.0, c as u32)
     }
     for (x, y) in [(256, 2), (1 << 16, 3), (877805, 4)] {
         pv(&mut v, y as i64);
-        let z = (y as u64) << 32;
+        let z = (y as u32 - 1) << 24;
         for x in z..z + x {
             let t = v.pop().unwrap();
             r.extend(&t.0);
@@ -191,13 +189,13 @@ fn main() {
             let mut f = | s: &[u8] | {
                 macro_rules! p {
                     ($v:ident) => {{
-                        let z = $v >> 32;
-                        if z == 1 {
+                        let z = $v >> 24;
+                        if z == 0 {
                             r.push($v as u8)
                         } else {
                             let mut v = $v;
-                            r.push(251 + z as u8);
-                            for _ in 0..z - 1 { r.push(v as u8); v >>= 8 }
+                            r.push(252 + z as u8);
+                            for _ in 0..z { r.push(v as u8); v >>= 8 }
                         }
                     }}
                 }

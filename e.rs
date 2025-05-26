@@ -16,7 +16,7 @@ fn main() {
             while s[j] != b';' { j += 1 }
             j += 1;
         } else {
-            while test_b(s[j]) { j += 1 }
+            while j < z && test_b(s[j]) { j += 1 }
         }
         if i > 0 && s[i - 1] == b' ' { i -= 1 }
         Some((i, j))

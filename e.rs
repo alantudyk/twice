@@ -1,4 +1,5 @@
 use std::collections::{HashMap as Map, BTreeSet as OSet};
+use std::mem::transmute as cast;
 
 fn main() {
     let mut a = std::env::args().skip(1);
@@ -33,10 +34,10 @@ fn main() {
             while test_b(s[i]) { i += 1 }
             while s[i] != b'&' && !test_b(s[i]) { i += 1 }
             if i > 0 && s[i - 1] == b' ' { i -= 1 }
-            ss.push(&s[p..i]);
+            ss.push(unsafe { cast::<&[u8], &'static [u8]>(&s[p..i]) });
             p = i
         }
-        ss.push(&s[p..]);
+        ss.push(unsafe { cast::<&[u8], &'static [u8]>(&s[p..]) });
         ss
     };
 
@@ -54,7 +55,6 @@ fn main() {
     let (tx, rx) = std::sync::mpsc::channel();
     for &s in &ss {
         let tx = tx.clone();
-        let s = s.to_vec();
         std::thread::spawn(move || {
             let mut p = 0;
             let mut h: TetraMap = Default::default();
@@ -181,8 +181,7 @@ fn main() {
     let (tx, rx) = std::sync::mpsc::channel();
     for (ti, &s) in ss.iter().enumerate() {
         let tx = tx.clone();
-        let s = s.to_vec();
-        let h = h.clone();
+        let h = unsafe { cast::<&TetraMap, &'static TetraMap>(&h) };
         std::thread::spawn(move || {
             let mut r = vec![];
             let mut p = 0;
